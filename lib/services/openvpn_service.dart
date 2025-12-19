@@ -21,49 +21,56 @@ class OpenVpnService {
 
   /// Launch OpenVPN on Android using Intent
   static Future<bool> _launchAndroidOpenVpn(String config, VpnServer server) async {
+    // 1. Try Generic View with Data URI (Works for OpenVPN Connect and others)
     try {
-      // Try OpenVPN Connect first
       final intent = AndroidIntent(
         action: 'android.intent.action.VIEW',
         type: 'application/x-openvpn-profile',
         data: 'data:application/x-openvpn-profile;base64,${server.openVpnConfigDataBase64}',
+        flags: <int>[268435456], // FLAG_ACTIVITY_NEW_TASK
+      );
+      await intent.launch();
+      return true;
+    } catch (e) {
+      // Continue
+    }
+
+    // 2. Try OpenVPN for Android (de.blinkt.openvpn) with SEND intent (Import profile)
+    // Needs text/plain type for inline config
+    try {
+      final intent = AndroidIntent(
+        action: 'android.intent.action.SEND',
+        type: 'text/plain',
+        arguments: <String, dynamic>{
+          'android.intent.extra.TEXT': config,
+        },
+        package: 'de.blinkt.openvpn',
+        flags: <int>[268435456], // FLAG_ACTIVITY_NEW_TASK
       );
       
       await intent.launch();
       return true;
     } catch (e) {
-      // Try alternative method with OpenVPN for Android
-      try {
-        final intent = AndroidIntent(
-          action: 'android.intent.action.SEND',
-          type: 'application/x-openvpn-profile',
-          arguments: <String, dynamic>{
-            'android.intent.extra.TEXT': config,
-          },
-          package: 'de.blinkt.openvpn',
-        );
-        
-        await intent.launch();
-        return true;
-      } catch (e2) {
-        // Try one more time with net.openvpn.openvpn
-        try {
-          final intent = AndroidIntent(
-            action: 'android.intent.action.SEND',
-            type: 'text/plain',
-            arguments: <String, dynamic>{
-              'android.intent.extra.TEXT': config,
-            },
-            package: 'net.openvpn.openvpn',
-          );
-          
-          await intent.launch();
-          return true;
-        } catch (e3) {
-          return false;
-        }
-      }
+      // Continue
     }
+
+    // 3. Try OpenVPN Connect (net.openvpn.openvpn) explicitly with Data URI
+    try {
+      final intent = AndroidIntent(
+        action: 'android.intent.action.VIEW',
+        type: 'application/x-openvpn-profile',
+        data: 'data:application/x-openvpn-profile;base64,${server.openVpnConfigDataBase64}',
+        package: 'net.openvpn.openvpn',
+        flags: <int>[268435456], // FLAG_ACTIVITY_NEW_TASK
+      );
+
+      await intent.launch();
+      return true;
+    } catch (e) {
+      // Continue
+    }
+
+    return false;
   }
 
   /// Generic OpenVPN launch for non-Android platforms
