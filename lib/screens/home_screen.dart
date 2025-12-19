@@ -138,6 +138,62 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildBody(VpnProvider provider) {
+    return Column(
+      children: [
+        if (provider.vpnStatus != null && provider.vpnStatus?.duration != null)
+          _buildVpnStatusBanner(provider),
+        Expanded(
+          child: _buildServerListContent(provider),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVpnStatusBanner(VpnProvider provider) {
+    final status = provider.vpnStatus!;
+    final isConnected = status.label == 'CONNECTED'; // Check exact string from library
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      color: isConnected ? Colors.green : Colors.orange,
+      child: Row(
+        children: [
+          Icon(
+            isConnected ? Icons.vpn_lock : Icons.sync,
+            color: Colors.white,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  status.label ?? 'Connecting...', // Using label or stage
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (status.duration != null)
+                  Text(
+                    status.duration!,
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+              ],
+            ),
+          ),
+          if (isConnected || status.label == 'CONNECTING' || status.label == 'PREPARE')
+            IconButton(
+              icon: const Icon(Icons.stop, color: Colors.white),
+              onPressed: () => OpenVpnService.disconnect(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildServerListContent(VpnProvider provider) {
     if (provider.isLoading && provider.servers.isEmpty) {
       return const Center(
         child: Column(
@@ -388,39 +444,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ]),
                   ],
                   const SizedBox(height: 24),
-                  // OpenVPN app links
-                  Text(
-                    'Don\'t have OpenVPN?',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _openUrl(OpenVpnService.openVpnPlayStoreUrl),
-                          icon: const Icon(Icons.download, size: 18),
-                          label: const Text(
-                            'OpenVPN Connect',
-                            style: TextStyle(fontSize: 12),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _openUrl(OpenVpnService.openVpnForAndroidPlayStoreUrl),
-                          icon: const Icon(Icons.download, size: 18),
-                          label: const Text(
-                            'OpenVPN for Android',
-                            style: TextStyle(fontSize: 12),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
@@ -475,62 +498,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _connectToServer(VpnServer server) async {
     Navigator.of(context).pop(); // Close bottom sheet
     
-    // Show loading indicator
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(),
+    // Show connecting message
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Connecting to VPN server...'),
+        duration: Duration(seconds: 2),
       ),
     );
 
     try {
-      final success = await OpenVpnService.connect(server);
-      
-      if (mounted) {
-        Navigator.of(context).pop(); // Close loading dialog
-        
-        if (!success) {
-          _showOpenVpnNotFoundDialog();
-        }
-      }
+      await OpenVpnService.connect(server);
     } catch (e) {
       if (mounted) {
-        Navigator.of(context).pop(); // Close loading dialog
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to launch OpenVPN: $e'),
+            content: Text('Failed to connect: $e'),
             backgroundColor: Colors.red,
           ),
         );
       }
     }
-  }
-
-  void _showOpenVpnNotFoundDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('OpenVPN App Required'),
-        content: const Text(
-          'To connect to VPN servers, you need to install an OpenVPN app. '
-          'Would you like to download one from the Play Store?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _openUrl(OpenVpnService.openVpnPlayStoreUrl);
-            },
-            child: const Text('Download'),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _openUrl(String url) async {
