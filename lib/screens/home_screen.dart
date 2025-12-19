@@ -163,7 +163,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (stage == VPNStage.disconnected) statusText = 'Disconnected';
     if (stage == VPNStage.wait_connection) statusText = 'Waiting for connection...';
     if (stage == VPNStage.authenticating) statusText = 'Authenticating...';
-    if (stage == VPNStage.reconnecting) statusText = 'Reconnecting...';
 
     return Container(
       width: double.infinity,
