@@ -13,12 +13,20 @@ class OpenVpnService {
   static bool _isInitialized = false;
 
   // Stream controller for VPN status
-  static final _statusController = StreamController<VPNStatus?>.broadcast();
-  static Stream<VPNStatus?> get statusStream => _statusController.stream;
+  static final _statusController = StreamController<VpnStatus?>.broadcast();
+  static Stream<VpnStatus?> get statusStream => _statusController.stream;
+
+  // Stream controller for VPN stage
+  static final _stageController = StreamController<VPNStage>.broadcast();
+  static Stream<VPNStage> get stageStream => _stageController.stream;
 
   // Current status
-  static VPNStatus? _currentStatus;
-  static VPNStatus? get currentStatus => _currentStatus;
+  static VpnStatus? _currentStatus;
+  static VpnStatus? get currentStatus => _currentStatus;
+
+  // Current stage
+  static VPNStage? _currentStage;
+  static VPNStage? get currentStage => _currentStage;
 
   /// Initialize the OpenVPN engine
   static void initialize() {
@@ -68,13 +76,16 @@ class OpenVpnService {
   }
 
   // Status callbacks
-  static void _onVpnStatusChanged(VPNStatus? status) {
+  static void _onVpnStatusChanged(VpnStatus? status) {
     _currentStatus = status;
     _statusController.add(status);
   }
 
-  static void _onVpnStageChanged(VPNStage? stage) {
-    // Currently relying on status changes which includes connection state
+  static void _onVpnStageChanged(VPNStage? stage, String rawStage) {
+    if (stage != null) {
+      _currentStage = stage;
+      _stageController.add(stage);
+    }
   }
 
   /// Get Google Play Store link for OpenVPN Connect (legacy support if needed)

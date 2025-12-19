@@ -19,8 +19,12 @@ class VpnProvider extends ChangeNotifier {
   DateTime? _lastRefresh;
   
   // VPN Status
-  VPNStatus? _vpnStatus;
-  StreamSubscription<VPNStatus?>? _vpnStatusSubscription;
+  VpnStatus? _vpnStatus;
+  StreamSubscription<VpnStatus?>? _vpnStatusSubscription;
+
+  // VPN Stage
+  VPNStage? _vpnStage;
+  StreamSubscription<VPNStage>? _vpnStageSubscription;
 
   // Getters
   List<VpnServer> get servers => _servers;
@@ -29,7 +33,8 @@ class VpnProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   DateTime? get lastRefresh => _lastRefresh;
-  VPNStatus? get vpnStatus => _vpnStatus;
+  VpnStatus? get vpnStatus => _vpnStatus;
+  VPNStage? get vpnStage => _vpnStage;
   
   /// Initialize the provider
   Future<void> init() async {
@@ -42,6 +47,11 @@ class VpnProvider extends ChangeNotifier {
   void _listenToVpnStatus() {
     _vpnStatusSubscription = OpenVpnService.statusStream.listen((status) {
       _vpnStatus = status;
+      notifyListeners();
+    });
+
+    _vpnStageSubscription = OpenVpnService.stageStream.listen((stage) {
+      _vpnStage = stage;
       notifyListeners();
     });
   }
@@ -182,6 +192,7 @@ class VpnProvider extends ChangeNotifier {
   void dispose() {
     _autoRefreshTimer?.cancel();
     _vpnStatusSubscription?.cancel();
+    _vpnStageSubscription?.cancel();
     super.dispose();
   }
 }

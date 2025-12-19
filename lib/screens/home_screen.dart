@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../providers/vpn_provider.dart';
 import '../models/vpn_server.dart';
 import '../widgets/server_card.dart';
+import 'package:openvpn_flutter/openvpn_flutter.dart';
 import '../services/openvpn_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -138,9 +139,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildBody(VpnProvider provider) {
+    // Show banner if we are not disconnected
+    final showBanner = provider.vpnStage != null && provider.vpnStage != VPNStage.disconnected;
+
     return Column(
       children: [
-        if (provider.vpnStatus != null && provider.vpnStatus?.duration != null)
+        if (showBanner)
           _buildVpnStatusBanner(provider),
         Expanded(
           child: _buildServerListContent(provider),
@@ -150,8 +154,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildVpnStatusBanner(VpnProvider provider) {
-    final status = provider.vpnStatus!;
-    final isConnected = status.label == 'CONNECTED'; // Check exact string from library
+    final stage = provider.vpnStage;
+    final status = provider.vpnStatus;
+    final isConnected = stage == VPNStage.connected;
+
+    String statusText = 'Connecting...';
+    if (stage == VPNStage.connected) statusText = 'Connected';
+    if (stage == VPNStage.disconnected) statusText = 'Disconnected';
+    if (stage == VPNStage.wait_connection) statusText = 'Waiting for connection...';
+    if (stage == VPNStage.authenticating) statusText = 'Authenticating...';
+    if (stage == VPNStage.reconnecting) statusText = 'Reconnecting...';
 
     return Container(
       width: double.infinity,
@@ -169,25 +181,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  status.label ?? 'Connecting...', // Using label or stage
+                  statusText,
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                if (status.duration != null)
+                if (status?.duration != null)
                   Text(
-                    status.duration!,
+                    status!.duration!,
                     style: const TextStyle(color: Colors.white70),
                   ),
               ],
             ),
           ),
-          if (isConnected || status.label == 'CONNECTING' || status.label == 'PREPARE')
-            IconButton(
-              icon: const Icon(Icons.stop, color: Colors.white),
-              onPressed: () => OpenVpnService.disconnect(),
-            ),
+          IconButton(
+            icon: const Icon(Icons.stop, color: Colors.white),
+            onPressed: () => OpenVpnService.disconnect(),
+          ),
         ],
       ),
     );
