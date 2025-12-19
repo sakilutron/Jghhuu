@@ -17,6 +17,8 @@ dependencies:
   provider: 6.1.5+1              # State management
   url_launcher: 6.3.1            # For launching OpenVPN intent
   android_intent_plus: 5.1.0     # Android Intent for OpenVPN
+  openvpn_flutter: ^1.3.4        # OpenVPN implementation
+  permission_handler: ^11.3.0    # For notification permissions
 
 dev_dependencies:
   flutter_test:

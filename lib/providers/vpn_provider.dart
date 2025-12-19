@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:openvpn_flutter/openvpn_flutter.dart';
 import '../models/vpn_server.dart';
 import '../services/vpn_api_service.dart';
 import '../services/storage_service.dart';
+import '../services/openvpn_service.dart';
 
 class VpnProvider extends ChangeNotifier {
   final VpnApiService _apiService = VpnApiService();
@@ -16,6 +18,10 @@ class VpnProvider extends ChangeNotifier {
   Timer? _autoRefreshTimer;
   DateTime? _lastRefresh;
   
+  // VPN Status
+  VPNStatus? _vpnStatus;
+  StreamSubscription<VPNStatus?>? _vpnStatusSubscription;
+
   // Getters
   List<VpnServer> get servers => _servers;
   Map<String, List<VpnServer>> get serversByCountry => _serversByCountry;
@@ -23,12 +29,21 @@ class VpnProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   DateTime? get lastRefresh => _lastRefresh;
+  VPNStatus? get vpnStatus => _vpnStatus;
   
   /// Initialize the provider
   Future<void> init() async {
     await _storageService.init();
     await fetchServers();
     _startAutoRefresh();
+    _listenToVpnStatus();
+  }
+
+  void _listenToVpnStatus() {
+    _vpnStatusSubscription = OpenVpnService.statusStream.listen((status) {
+      _vpnStatus = status;
+      notifyListeners();
+    });
   }
   
   /// Fetch servers from API
@@ -166,6 +181,7 @@ class VpnProvider extends ChangeNotifier {
   @override
   void dispose() {
     _autoRefreshTimer?.cancel();
+    _vpnStatusSubscription?.cancel();
     super.dispose();
   }
 }

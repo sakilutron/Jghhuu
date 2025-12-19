@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/vpn_provider.dart';
 import 'screens/home_screen.dart';
+import 'services/openvpn_service.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  OpenVpnService.initialize();
   runApp(const VpnGoatApp());
 }
 

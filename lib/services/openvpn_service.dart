@@ -1,127 +1,87 @@
+import 'dart:async';
 import 'dart:io';
-import 'package:android_intent_plus/android_intent.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:openvpn_flutter/openvpn_flutter.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../models/vpn_server.dart';
 
 class OpenVpnService {
-  /// Launch OpenVPN with the server configuration
-  static Future<bool> connect(VpnServer server) async {
-    final config = server.openVpnConfig;
-    if (config.isEmpty) {
-      return false;
-    }
+  static final OpenVPN _openVPN = OpenVPN(
+    onVpnStatusChanged: _onVpnStatusChanged,
+    onVpnStageChanged: _onVpnStageChanged,
+  );
 
+  static bool _isInitialized = false;
+
+  // Stream controller for VPN status
+  static final _statusController = StreamController<VPNStatus?>.broadcast();
+  static Stream<VPNStatus?> get statusStream => _statusController.stream;
+
+  // Current status
+  static VPNStatus? _currentStatus;
+  static VPNStatus? get currentStatus => _currentStatus;
+
+  /// Initialize the OpenVPN engine
+  static void initialize() {
+    if (!_isInitialized) {
+      _openVPN.initialize(
+        groupIdentifier: "group.com.vpngoat.vpn",
+        providerBundleIdentifier: "id.laskarmedia.openvpnFlutterExample.VPNExtension", // Using default for now as we don't have iOS setup
+        localizedDescription: "VPN Goat",
+      );
+      _isInitialized = true;
+    }
+  }
+
+  /// Request necessary permissions
+  static Future<void> requestPermissions() async {
     if (Platform.isAndroid) {
-      return await _launchAndroidOpenVpn(config, server);
-    } else {
-      // For other platforms, try to open a data URI
-      return await _launchGenericOpenVpn(config, server);
-    }
-  }
-
-  /// Launch OpenVPN on Android using Intent
-  static Future<bool> _launchAndroidOpenVpn(String config, VpnServer server) async {
-    // 1. Try Generic View with Data URI (Works for OpenVPN Connect and others)
-    try {
-      final intent = AndroidIntent(
-        action: 'android.intent.action.VIEW',
-        type: 'application/x-openvpn-profile',
-        data: 'data:application/x-openvpn-profile;base64,${server.openVpnConfigDataBase64}',
-        flags: <int>[268435456], // FLAG_ACTIVITY_NEW_TASK
-      );
-      await intent.launch();
-      return true;
-    } catch (e) {
-      // Continue
-    }
-
-    // 2. Try OpenVPN for Android (de.blinkt.openvpn) with SEND intent (Import profile)
-    // Needs text/plain type for inline config
-    try {
-      final intent = AndroidIntent(
-        action: 'android.intent.action.SEND',
-        type: 'text/plain',
-        arguments: <String, dynamic>{
-          'android.intent.extra.TEXT': config,
-        },
-        package: 'de.blinkt.openvpn',
-        flags: <int>[268435456], // FLAG_ACTIVITY_NEW_TASK
-      );
-      
-      await intent.launch();
-      return true;
-    } catch (e) {
-      // Continue
-    }
-
-    // 3. Try OpenVPN Connect (net.openvpn.openvpn) explicitly with Data URI
-    try {
-      final intent = AndroidIntent(
-        action: 'android.intent.action.VIEW',
-        type: 'application/x-openvpn-profile',
-        data: 'data:application/x-openvpn-profile;base64,${server.openVpnConfigDataBase64}',
-        package: 'net.openvpn.openvpn',
-        flags: <int>[268435456], // FLAG_ACTIVITY_NEW_TASK
-      );
-
-      await intent.launch();
-      return true;
-    } catch (e) {
-      // Continue
-    }
-
-    return false;
-  }
-
-  /// Generic OpenVPN launch for non-Android platforms
-  static Future<bool> _launchGenericOpenVpn(String config, VpnServer server) async {
-    // Create a data URI for the config
-    final dataUri = Uri.parse(
-      'data:application/x-openvpn-profile;base64,${server.openVpnConfigDataBase64}'
-    );
-    
-    if (await canLaunchUrl(dataUri)) {
-      return await launchUrl(dataUri);
-    }
-    return false;
-  }
-
-  /// Check if OpenVPN app is installed
-  static Future<bool> isOpenVpnInstalled() async {
-    if (Platform.isAndroid) {
-      try {
-        // Check for common OpenVPN apps
-        final packages = [
-          'net.openvpn.openvpn',
-          'de.blinkt.openvpn',
-        ];
-        
-        for (final package in packages) {
-          try {
-            final intent = AndroidIntent(
-              action: 'android.intent.action.MAIN',
-              package: package,
-            );
-            // If this doesn't throw, the package exists
-            await intent.launch();
-            return true;
-          } catch (e) {
-            continue;
-          }
-        }
-        return false;
-      } catch (e) {
-        return false;
+      if (await Permission.notification.isDenied) {
+        await Permission.notification.request();
       }
     }
-    return true; // Assume true for other platforms
   }
 
-  /// Get Google Play Store link for OpenVPN Connect
+  /// Connect to the VPN server
+  static Future<void> connect(VpnServer server) async {
+    if (!_isInitialized) initialize();
+    await requestPermissions();
+
+    final config = server.openVpnConfig;
+    if (config.isEmpty) {
+      return;
+    }
+
+    _openVPN.connect(
+      config,
+      server.hostName,
+      username: '',
+      password: '',
+      certIsRequired: false,
+    );
+  }
+
+  /// Disconnect from VPN
+  static void disconnect() {
+    if (_isInitialized) {
+      _openVPN.disconnect();
+    }
+  }
+
+  // Status callbacks
+  static void _onVpnStatusChanged(VPNStatus? status) {
+    _currentStatus = status;
+    _statusController.add(status);
+  }
+
+  static void _onVpnStageChanged(VPNStage? stage) {
+    // Currently relying on status changes which includes connection state
+  }
+
+  /// Get Google Play Store link for OpenVPN Connect (legacy support if needed)
   static String get openVpnPlayStoreUrl =>
       'https://play.google.com/store/apps/details?id=net.openvpn.openvpn';
 
-  /// Get Google Play Store link for OpenVPN for Android
+  /// Get Google Play Store link for OpenVPN for Android (legacy support if needed)
   static String get openVpnForAndroidPlayStoreUrl =>
       'https://play.google.com/store/apps/details?id=de.blinkt.openvpn';
 }
